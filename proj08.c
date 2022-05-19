@@ -81,8 +81,8 @@ void initsvpwm_duty(float va,float v2);
 void uvw_duty(int sn, float *y, float T1, float T2, float T3);
 
 // six-step switch
-void six_step_switch(float Ts, float Da, float Db, float Dc, float ct);
-void phase_voltage(int ss,float *y2);
+//void six_step_switch(float Ts, float Da, float Db, float Dc, float ct);
+//void phase_voltage(int ss,float *y2);
 // lookup table
 static int sector_sel[6] = {6, 2, 1, 4, 5, 3};
 // ADC setup
@@ -311,7 +311,7 @@ void main(void)
         {
             rad = 2*PI*rad_f;
             rad_s = 2*PI/rad_f;
-            theta_in =rad*3*rad_t;
+            theta_in =rad*rad_t;
             u[1] = 0.25*(float)sin(2*PI*T*F)+0.25;
             T++;
             ccc = cos(co_in);
@@ -335,12 +335,7 @@ void main(void)
         {
             theta = 0;
         }
-        /*       six_step_switch(Ts_pwm, y[0],y[1],y[2], pulse);
-               if(pulse > Ts_pwm)
-               {
-                   pulse = 0;
-               }
-               */
+
     }
 }
 __interrupt void
@@ -404,88 +399,7 @@ epwm8_isr(void)
     //
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP3;
 }
-/*
-void six_step_switch(float Ts, float Da, float Db, float Dc, float ct)
-{
-    ta1 = 0.5*(1-Da)*Ts;
-    ta2 = 0.5*(1+Da)*Ts;
-    tb1 = 0.5*(1-Db)*Ts;
-    tb2 = 0.5*(1+Db)*Ts;
-    tc1 = 0.5*(1-Dc)*Ts;
-    tc2 = 0.5*(1+Dc)*Ts;
 
-    if ((ct < ta1) || (ct >= ta2)) {
-      sa = 0;
-    }
-    else {
-      sa = 1;
-    }
-
-    if ((ct < tb1) || (ct >= tb2)) {
-      sb = 0;
-    }
-    else {
-      sb = 1;
-    }
-
-    if ((ct < tc1) || (ct >= tc2)) {
-      sc = 0;
-    }
-    else {
-      sc = 1;
-    }
-
-    ss = sa*4+sb*2+sc;
-    phase_voltage(ss,y2);
-
-}
-void phase_voltage(int ss, float *y2)
-{
-    switch (ss) {
-    case 0:
-      y2[0] =  0;
-      y2[1] =  0;
-      y2[2] =  0;
-      break;
-    case 1:
-      y2[0] = -1;
-      y2[1] = -1;
-      y2[2] =  2;
-      break;
-    case 2:
-      y2[0] = -1;
-      y2[1] =  2;
-      y2[2] = -1;
-      break;
-    case 3:
-      y2[0] = -2;
-      y2[1] =  1;
-      y2[2] =  1;
-      break;
-    case 4:
-      y2[0] =  2;
-      y2[1] = -1;
-      y2[2] = -1;
-      break;
-    case 5:
-      y2[0] =  1;
-      y2[1] = -2;
-      y2[2] =  1;
-      break;
-    case 6:
-      y2[0] =  1;
-      y2[1] =  1;
-      y2[2] = -2;
-      break;
-    default:
-      y2[0] =  0;
-      y2[1] =  0;
-      y2[2] =  0;
-    }
-
-    return;
-}
-*/
 void initsvpwm_duty(float vd_ref, float vq_ref)
 {
     theta += theta_in;  // 0~2pi theta change

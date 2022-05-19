@@ -156,6 +156,7 @@ float ccc;
 float co_in;
 float rad_f = 0.0;
 float rad_t = 0.0;
+float rad_s = 0.0;
 float rad = 0;
 float angle;
 
@@ -308,7 +309,8 @@ void main(void)
     {
         if(switch_1 == 1)
         {
-            rad = 2*PI/rad_f;
+            rad = 2*PI*rad_f;
+            rad_s = 2*PI/rad_f;
             theta_in =rad*3*rad_t;
             u[1] = 0.25*(float)sin(2*PI*T*F)+0.25;
             T++;
@@ -316,12 +318,12 @@ void main(void)
             initsvpwm_duty(u[0],u[1]);
             pulse += 0.000001;
 
-            Ta = 2048*(y[0]-0.25)+2048;
-            Tb = 2048*(y[1]-0.25)+2048;
-            Tc = 2048*(y[2]-0.25)+2048;
+            Ta = 2048*(y[0]-0.5)+2048;
+            Tb = 2048*(y[1]-0.5)+2048;
+            Tc = 2048*(y[2]-0.5)+2048;
 
             EPwm8Regs.CMPA.half.CMPA = Tb;
-            EPwm7Regs.CMPA.half.CMPA = 2048*(u[1]-0.5)+2048;
+            EPwm7Regs.CMPA.half.CMPA = Tc;
             error_pre = error;
             EPwm3Regs.ETSEL.bit.SOCAEN = 1;
             EPwm3Regs.TBCTL.bit.CTRMODE = 0;

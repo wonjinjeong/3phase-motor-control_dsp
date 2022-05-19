@@ -159,6 +159,7 @@ float rad_t = 0.0;
 float rad_s = 0.0;
 float rad = 0;
 float angle;
+float input_fun;
 
 // ABC to dq variable
 float theta;
@@ -311,8 +312,9 @@ void main(void)
         {
             rad = 2*PI*rad_f;
             rad_s = 2*PI/rad_f;
-            theta_in =rad*rad_t;
+            theta_in =rad*3*rad_t;
             u[1] = 0.25*(float)sin(2*PI*T*F)+0.25;
+            input_fun = 2048*(u[1]-0.25)+2048;
             T++;
             ccc = cos(co_in);
             initsvpwm_duty(u[0],u[1]);

@@ -183,6 +183,8 @@ int sa, sb, sc, ss;
 float Ts, Da, Db, Dc, ct;
 float ta1, ta2, tb1, tb2, tc1, tc2;
 
+Uint16 count;
+
 void main(void)
 {
 
@@ -299,34 +301,34 @@ void main(void)
     fs_pwm = 5000;
     Ts_pwm = 1/fs_pwm;
     f = 10;
-    rad_f = 0;
-    rad_t = 0;
+    rad_f = 10;
+    rad_t = 0.001;
     rad = 0;
     co_in = 60;
     theta = 0;
     switch_1 = 0;
     angle = 0;
+    count = 0;
     for(;;)
     {
         if(switch_1 == 1)
         {
-            rad = 2*PI*rad_f;
+            rad =2*PI*rad_f;
             rad_s = 2*PI/rad_f;
-            theta_in =rad*3*rad_t;
-            u[1] = 0.25*(float)sin(2*PI*T*F)+0.25;
+            theta_in =rad*rad_t;
             input_fun = 2048*(u[1]-0.25)+2048;
-            T++;
-            ccc = cos(co_in);
+
+
             initsvpwm_duty(u[0],u[1]);
-            pulse += 0.000001;
 
-            Ta = 2048*(y[0]-0.5)+2048;
-            Tb = 2048*(y[1]-0.5)+2048;
-            Tc = 2048*(y[2]-0.5)+2048;
-
+            Ta = 4500*(y[0]-0.5)+4500;
+            Tb = 4500*(y[1]-0.5)+4500;
+            Tc = 4500*(y[2]-0.5)+4500;
             EPwm8Regs.CMPA.half.CMPA = Tb;
-            EPwm7Regs.CMPA.half.CMPA = Tc;
+            EPwm7Regs.CMPA.half.CMPA = Ta;
             error_pre = error;
+
+
             EPwm3Regs.ETSEL.bit.SOCAEN = 1;
             EPwm3Regs.TBCTL.bit.CTRMODE = 0;
 
@@ -535,9 +537,8 @@ void configureEPWM(void)
 void initEPWM4()
 {
     EPwm4Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm4Regs.TBPRD = 4096;       // Set timer period
+    EPwm4Regs.TBPRD = 8999;       // Set timer period
     EPwm4Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
-    EPwm4Regs.TBCTL.bit.SYNCOSEL = TB_CTR_ZERO;
     EPwm4Regs.TBPHS.half.TBPHS = 0x0000;       // Phase is 0
     EPwm4Regs.TBCTR = 0x0000;                  // Clear counter
     EPwm4Regs.TBCTL.bit.HSPCLKDIV = 0;   // Clock ratio to SYSCLKOUT
@@ -554,7 +555,7 @@ void initEPWM4()
     //
     // Set Compare values
     //
-    EPwm4Regs.CMPA.half.CMPA = 2048;    // Set compare A value
+    EPwm4Regs.CMPA.half.CMPA = 450;    // Set compare A value
 
     //
     // Set actions
@@ -575,12 +576,9 @@ void initEPWM4()
 void initEPWM5()
 {
     EPwm5Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm5Regs.TBPRD = 4096;       // Set timer period
-    EPwm5Regs.TBCTL.bit.PHSEN = TB_ENABLE;    // Disable phase loading
-    EPwm5Regs.TBCTL.bit.PHSDIR = TB_UP;     // Count down on sync
-    EPwm5Regs.TBCTL.bit.PRDLD = TB_SHADOW;
-    EPwm5Regs.TBCTL.bit.SYNCOSEL = TB_SYNC_IN;
-    EPwm5Regs.TBPHS.half.TBPHS = 2731;       // Phase is 0
+    EPwm5Regs.TBPRD = 8999;       // Set timer period
+    EPwm5Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
+    EPwm5Regs.TBPHS.half.TBPHS = 0;       // Phase is 0
     EPwm5Regs.TBCTR = 0x0000;                  // Clear counter
     EPwm5Regs.TBCTL.bit.HSPCLKDIV = 0;   // Clock ratio to SYSCLKOUT
     EPwm5Regs.TBCTL.bit.CLKDIV = 0;
@@ -596,7 +594,7 @@ void initEPWM5()
     //
     // Set Compare values
     //
-    EPwm5Regs.CMPA.half.CMPA = 2048;    // Set compare A value
+    EPwm5Regs.CMPA.half.CMPA = 450;    // Set compare A value
 
     //
     // Set actions
@@ -617,12 +615,9 @@ void initEPWM5()
 void initEPWM6()
 {
     EPwm6Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm6Regs.TBPRD = 4096;       // Set timer period
-    EPwm6Regs.TBCTL.bit.PHSEN = TB_ENABLE;    // Disable phase loading
-    EPwm6Regs.TBCTL.bit.PHSDIR = TB_UP;     // Count down on sync
-    EPwm6Regs.TBCTL.bit.PRDLD = TB_SHADOW;
-    EPwm6Regs.TBCTL.bit.SYNCOSEL = TB_SYNC_IN;
-    EPwm6Regs.TBPHS.half.TBPHS = 1365;       // Phase is 0
+    EPwm6Regs.TBPRD = 8999;       // Set timer period
+    EPwm6Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
+    EPwm6Regs.TBPHS.half.TBPHS = 0;       // Phase is 0
     EPwm6Regs.TBCTR = 0x0000;                  // Clear counter
     EPwm6Regs.TBCTL.bit.HSPCLKDIV = 0;   // Clock ratio to SYSCLKOUT
     EPwm6Regs.TBCTL.bit.CLKDIV = 0;
@@ -638,7 +633,7 @@ void initEPWM6()
     //
     // Set Compare values
     //
-    EPwm6Regs.CMPA.half.CMPA = 2048;    // Set compare A value
+    EPwm6Regs.CMPA.half.CMPA = 450;    // Set compare A value
 
     //
     // Set actions
@@ -659,7 +654,7 @@ void initEPWM6()
 void initEPWM7()
 {
     EPwm7Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm7Regs.TBPRD = 4096;       // Set timer period
+    EPwm7Regs.TBPRD = 8999;       // Set timer period
     EPwm7Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
     EPwm7Regs.TBPHS.half.TBPHS = 0x0000;       // Phase is 0
     EPwm7Regs.TBCTR = 0x0000;                  // Clear counter
@@ -677,7 +672,7 @@ void initEPWM7()
     //
     // Set Compare values
     //
-    EPwm7Regs.CMPA.half.CMPA = 2048;    // Set compare A value
+    EPwm7Regs.CMPA.half.CMPA = 450;    // Set compare A value
 
     //
     // Set actions
@@ -699,7 +694,7 @@ void initEPWM7()
 void initEPWM8()
 {
     EPwm8Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm8Regs.TBPRD = 4096;       // Set timer period
+    EPwm8Regs.TBPRD = 8999;       // Set timer period
     EPwm8Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
     EPwm8Regs.TBPHS.half.TBPHS = 0x0000;       // Phase is 0
     EPwm8Regs.TBCTR = 0x0000;                  // Clear counter
@@ -717,7 +712,7 @@ void initEPWM8()
     //
     // Set Compare values
     //
-    EPwm8Regs.CMPA.half.CMPA = 2048;    // Set compare A value
+    EPwm8Regs.CMPA.half.CMPA = 450;    // Set compare A value
 
     //
     // Set actions

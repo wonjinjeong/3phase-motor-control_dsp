@@ -131,9 +131,9 @@ float i_a;
 float i_b;
 float i_c;
 
-float Da;
-float Db;
-float Dc;
+float d_a;
+float d_b;
+float d_c;
 
 float i_q;
 float i_qq;
@@ -306,7 +306,7 @@ void main(void)
     u[1] = 0.1;  // vq_ref
 
     // pwm switching parameter
-    fs_pwm = 5000;
+    fs_pwm = 10000;
     Ts_pwm = 1/fs_pwm;
     f = 10;
     rad_f = 10;
@@ -326,13 +326,13 @@ void main(void)
             theta_in =rad*rad_t;  // 적분 된 theta 값
 
             initsvpwm_duty(u[0],u[1]);
-            Da = y[0]-0.5;
-            Db = y[1]-0.5;
-            Dc = y[2]-0.5;
+            d_a = y[0]-0.5;
+            d_b = y[1]-0.5;
+            d_c = y[2]-0.5;
 
-            Ta = 4500*Da+4500;
-            Tb = 4500*Db+4500;
-            Tc = 4500*Dc+4500;
+            Ta = 4500*d_a+4500;
+            Tb = 4500*d_b+4500;
+            Tc = 4500*d_c+4500;
 
             i_a = (2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
             i_b = (2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
@@ -412,7 +412,14 @@ epwm8_isr(void)
     //
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP3;
 }
+void six_step_switch(float Ts, float Da, float Db, float Dc, float ct)
+{
+    Ts = Ts_pwm;
+}
+void phase_voltage(int ss,float *y2)
+{
 
+}
 void initsvpwm_duty(float vd_ref, float vq_ref)
 {
     theta += theta_in;  // 0~2pi theta change

@@ -81,8 +81,8 @@ void initsvpwm_duty(float va,float v2);
 void uvw_duty(int sn, float *y, float T1, float T2, float T3);
 
 // six-step switch
-//void six_step_switch(float Ts, float Da, float Db, float Dc, float ct);
-//void phase_voltage(int ss,float *y2);
+void six_step_switch(float Ts, float Da, float Db, float Dc, float ct);
+void phase_voltage(int ss,float *y2);
 // lookup table
 static int sector_sel[6] = {6, 2, 1, 4, 5, 3};
 // ADC setup
@@ -126,6 +126,14 @@ float i_me;
 float i_de2;
 float i_me2;
 float i_me3;
+
+float i_a;
+float i_b;
+float i_c;
+
+float Da;
+float Db;
+float Dc;
 
 float i_q;
 float i_qq;
@@ -302,7 +310,7 @@ void main(void)
     Ts_pwm = 1/fs_pwm;
     f = 10;
     rad_f = 10;
-    rad_t = 0.001;
+    rad_t = 0.0001;
     rad = 0;
     co_in = 60;
     theta = 0;
@@ -313,21 +321,22 @@ void main(void)
     {
         if(switch_1 == 1)
         {
-            rad =2*PI*rad_f;
+            rad =2*PI*rad_f;      // 2*Pi*f(freq)
             rad_s = 2*PI/rad_f;
-            theta_in =rad*rad_t;
-            input_fun = 2048*(u[1]-0.25)+2048;
-
+            theta_in =rad*rad_t;  // 적분 된 theta 값
 
             initsvpwm_duty(u[0],u[1]);
+            Da = y[0]-0.5;
+            Db = y[1]-0.5;
+            Dc = y[2]-0.5;
 
-            Ta = 4500*(y[0]-0.5)+4500;
-            Tb = 4500*(y[1]-0.5)+4500;
-            Tc = 4500*(y[2]-0.5)+4500;
-            EPwm8Regs.CMPA.half.CMPA = Tb;
-            EPwm7Regs.CMPA.half.CMPA = Ta;
-            error_pre = error;
+            Ta = 4500*Da+4500;
+            Tb = 4500*Db+4500;
+            Tc = 4500*Dc+4500;
 
+            i_a = (2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
+            i_b = (2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
+            i_c = (2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
 
             EPwm3Regs.ETSEL.bit.SOCAEN = 1;
             EPwm3Regs.TBCTL.bit.CTRMODE = 0;
@@ -421,6 +430,7 @@ void initsvpwm_duty(float vd_ref, float vq_ref)
     j = vb;
     k = (-1)*SQRT3H*va-0.5*vb;
     N = SIGN(i)+2*SIGN(j)+4*SIGN(k);
+
     sector = sector_sel[N-1];
     uvw_duty(sector,y,i,j,k);
 
@@ -514,13 +524,25 @@ void configureADC(void)
     AdcRegs.ADCSOC1CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
     AdcRegs.ADCSOC1CTL.bit.ACQPS = 6;
 
-    AdcRegs.ADCSOC2CTL.bit.CHSEL = 11;  // ADCINB3
+    AdcRegs.ADCSOC2CTL.bit.CHSEL = 11;  // ADCINB3 - IB
     AdcRegs.ADCSOC2CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
     AdcRegs.ADCSOC2CTL.bit.ACQPS = 6;
 
-    AdcRegs.ADCSOC3CTL.bit.CHSEL = 4;   // ADCINA4
+    AdcRegs.ADCSOC3CTL.bit.CHSEL = 4;   // ADCINA4 - IC
     AdcRegs.ADCSOC3CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
     AdcRegs.ADCSOC3CTL.bit.ACQPS = 6;
+
+    AdcRegs.ADCSOC4CTL.bit.CHSEL = 1;   // ADCINA1
+    AdcRegs.ADCSOC4CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
+    AdcRegs.ADCSOC4CTL.bit.ACQPS = 6;
+
+    AdcRegs.ADCSOC5CTL.bit.CHSEL = 8;   // ADCINA0
+    AdcRegs.ADCSOC5CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
+    AdcRegs.ADCSOC5CTL.bit.ACQPS = 6;
+
+    AdcRegs.ADCSOC6CTL.bit.CHSEL = 0;   // ADCINB0
+    AdcRegs.ADCSOC6CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
+    AdcRegs.ADCSOC6CTL.bit.ACQPS = 6;
     EDIS;
 }
 

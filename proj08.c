@@ -83,6 +83,9 @@ void uvw_duty(int sn, float *y, float T1, float T2, float T3);
 // six-step switch
 void six_step_switch(float Ts, float Da, float Db, float Dc, float ct);
 void phase_voltage(int ss,float *y2);
+
+// abc to dq transform
+void abc2dq(float v1, float v2, float v3);
 // lookup table
 static int sector_sel[6] = {6, 2, 1, 4, 5, 3};
 // ADC setup
@@ -168,7 +171,7 @@ float rad_f = 0.0;
 float rad_t = 0.0;
 float rad_s = 0.0;
 float rad = 0;
-float angle;
+float angle, angle2;
 float input_fun;
 
 // ABC to dq variable
@@ -182,8 +185,9 @@ float Fa;
 float Fb;
 
 int s[6];
-float y[2];
-float y2[2];
+float y[2];  // duty output
+float y2[2]; // duty - abc transform output
+float y3[2]; // alpha - beta to dq transform output
 
 // six step switch(voltage source inverter)
 float fs_pwm;
@@ -192,7 +196,10 @@ float pulse;
 int sa, sb, sc, ss;
 float Ts, Da, Db, Dc, ct;
 float ta1, ta2, tb1, tb2, tc1, tc2;
-
+// abc to dq transform
+float Fa, Fb, th2, co2, si2;
+float v1, v2, v3;
+float va, vb, vc;
 Uint16 count;
 
 void main(void)
@@ -319,6 +326,7 @@ void main(void)
     switch_1 = 0;
     angle = 0;
     count = 0;
+    ct = 0;
     for(;;)
     {
         if(switch_1 == 1)
@@ -336,11 +344,21 @@ void main(void)
             Tb = 4500*d_b+4500;
             Tc = 4500*d_c+4500;
 
-            iv_gain = (u[1]-0.1)+0.05;
-            i_a = iv_gain*(2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
-            i_b = iv_gain*(2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
-            i_c = iv_gain*(2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
+            //iv_gain = 0.1*(u[1]-0.1)+0.05;
+            i_a = 0.5+(iv_gain*(2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0);    // IA 측정
+            i_b = 0.5+(iv_gain*(2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0);    // IB 측정
+            i_c = 0.5+(iv_gain*(2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0);    // IC 측정
+            ct +=0.000001;
+            if(ct > 0.0002)
+            {
+                ct = 0;
+            }
+            six_step_switch(Ts_pwm,y[0],y[1],y[2],ct);
+            va = y2[0]*INV3;
+            vb = y2[1]*INV3;
+            vc = y2[2]*INV3;
 
+            abc2dq(va,vb,vc);
             EPwm3Regs.ETSEL.bit.SOCAEN = 1;
             EPwm3Regs.TBCTL.bit.CTRMODE = 0;
 
@@ -415,13 +433,103 @@ epwm8_isr(void)
     //
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP3;
 }
-void six_step_switch(float Ts, float Da, float Db, float Dc, float ct)
+void abc2dq(float v1, float v2, float v3)
 {
-    Ts = Ts_pwm;
+    th2 += theta_in;  // 0~2pi theta change
+    co2 = (float)cos(th2);
+    si2 = (float)sin(th2);
+    angle2 = th2*180/PI;
+    if(angle2 > 360)
+    {
+        th2 = 0;
+    }
+    co2 = (float)cos(th2);
+    si2 = (float)sin(th2);
+
+    Fa = INV3*(2*v1-v2-v3);
+    Fb = SQRT3*(v2-v3);
+
+    y3[0] = co2*Fa+si2*Fb;
+    y3[1] = co2*Fb-si2*Fa;
+}
+void six_step_switch(float Ts, float i_a, float i_b, float i_c, float ct)
+{
+    ta1 = 0.5*(1-i_a)*Ts;
+    ta2 = 0.5*(1+i_a)*Ts;
+    tb1 = 0.5*(1-i_b)*Ts;
+    tb2 = 0.5*(1+i_b)*Ts;
+    tc1 = 0.5*(1-i_c)*Ts;
+    tc2 = 0.5*(1+i_c)*Ts;
+
+    if ((ct < ta1) || (ct >= ta2)) {
+      sa = 0;
+    }
+    else {
+      sa = 1;
+    }
+
+    if ((ct < tb1) || (ct >= tb2)) {
+      sb = 0;
+    }
+    else {
+      sb = 1;
+    }
+
+    if ((ct < tc1) || (ct >= tc2)) {
+      sc = 0;
+    }
+    else {
+      sc = 1;
+    }
+
+    ss = sa*4+sb*2+sc;
+
+    phase_voltage(ss,y2);
+
 }
 void phase_voltage(int ss,float *y2)
 {
-
+    switch (ss) {
+    case 0:
+      y2[0] =  0;
+      y2[1] =  0;
+      y2[2] =  0;
+      break;
+    case 1:
+      y2[0] = -1;
+      y2[1] = -1;
+      y2[2] =  2;
+      break;
+    case 2:
+      y2[0] = -1;
+      y2[1] =  2;
+      y2[2] = -1;
+      break;
+    case 3:
+      y2[0] = -2;
+      y2[1] =  1;
+      y2[2] =  1;
+      break;
+    case 4:
+      y2[0] =  2;
+      y2[1] = -1;
+      y2[2] = -1;
+      break;
+    case 5:
+      y2[0] =  1;
+      y2[1] = -2;
+      y2[2] =  1;
+      break;
+    case 6:
+      y2[0] =  1;
+      y2[1] =  1;
+      y2[2] = -2;
+      break;
+    default:
+      y2[0] =  0;
+      y2[1] =  0;
+      y2[2] =  0;
+    }
 }
 void initsvpwm_duty(float vd_ref, float vq_ref)
 {

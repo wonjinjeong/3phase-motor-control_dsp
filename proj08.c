@@ -135,6 +135,8 @@ float d_a;
 float d_b;
 float d_c;
 
+float iv_gain;
+
 float i_q;
 float i_qq;
 float error;
@@ -334,9 +336,10 @@ void main(void)
             Tb = 4500*d_b+4500;
             Tc = 4500*d_c+4500;
 
-            i_a = (2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
-            i_b = (2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
-            i_c = (2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
+            iv_gain = (u[1]-0.1)+0.05;
+            i_a = iv_gain*(2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
+            i_b = iv_gain*(2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
+            i_c = iv_gain*(2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
 
             EPwm3Regs.ETSEL.bit.SOCAEN = 1;
             EPwm3Regs.TBCTL.bit.CTRMODE = 0;

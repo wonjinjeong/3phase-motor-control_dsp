@@ -50,6 +50,10 @@
 								<option id="com.ti.ccstudio.buildDefinitions.C2000_21.6.compilerID.VCU_SUPPORT.2017564735" name="Specify VCU support (--vcu_support)" superClass="com.ti.ccstudio.buildDefinitions.C2000_21.6.compilerID.VCU_SUPPORT" value="com.ti.ccstudio.buildDefinitions.C2000_21.6.compilerID.VCU_SUPPORT.vcu0" valueType="enumerated"/>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.ti.ccstudio.buildDefinitions.C2000_21.6.compilerID.INCLUDE_PATH.2079354608" name="Add dir to #include search path (--include_path, -I)" superClass="com.ti.ccstudio.buildDefinitions.C2000_21.6.compilerID.INCLUDE_PATH" valueType="includePath">
 									<listOptionValue builtIn="false" value="${CG_TOOL_ROOT}/include"/>
+									<listOptionValue builtIn="false" value="C:\ti\c2000\C2000Ware_MotorControl_SDK_3_03_00_00\c2000ware\libraries\math\IQmath\c28\include"/>
+									<listOptionValue builtIn="false" value="C:\ti\c2000\C2000Ware_MotorControl_SDK_3_03_00_00\c2000ware\libraries\math\FPUfastRTS\c28\include"/>
+									<listOptionValue builtIn="false" value="C:\ti\c2000\C2000Ware_MotorControl_SDK_3_03_00_00\c2000ware\libraries\control\DCL\c28\include"/>
+									<listOptionValue builtIn="false" value="C:\ti\c2000\C2000Ware_MotorControl_SDK_3_03_00_00\libraries\utilities\math_blocks\include\v4.3"/>
 									<listOptionValue builtIn="false" value="C:\ti\c2000\C2000Ware_MotorControl_SDK_3_03_00_00\c2000ware\device_support\f2806x\common\include"/>
 									<listOptionValue builtIn="false" value="C:\ti\c2000\C2000Ware_MotorControl_SDK_3_03_00_00\c2000ware\device_support\f2806x\headers\include"/>
 								</option>

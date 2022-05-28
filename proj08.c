@@ -81,7 +81,7 @@ void initsvpwm_duty(float va,float v2);
 void uvw_duty(int sn, float *y, float T1, float T2, float T3);
 
 // six-step switch
-void six_step_switch(float Ts, float Da, float Db, float Dc, float ct);
+void six_step_switch(float Ts, float Da, float Db, float Dc);
 void phase_voltage(int ss,float *y2);
 
 // abc to dq transform
@@ -115,7 +115,7 @@ float ref2;
 float fun_amp;
 
 float Wq;
-float Wc = 1000;
+float Wc = 100;
 float Ts = 0.0001;
 
 float a_gain;
@@ -133,6 +133,14 @@ float i_me3;
 float i_a;
 float i_b;
 float i_c;
+
+float adc_ia;
+float adc_ib;
+float adc_ic;
+
+float adcout_ia;
+float adcout_ib;
+float adcout_ic;
 
 float d_a;
 float d_b;
@@ -194,13 +202,16 @@ float fs_pwm;
 float Ts_pwm;
 float pulse;
 int sa, sb, sc, ss;
-float Ts, Da, Db, Dc, ct;
+float Ts, ct;
 float ta1, ta2, tb1, tb2, tc1, tc2;
 // abc to dq transform
 float Fa, Fb, th2, co2, si2;
 float v1, v2, v3;
 float va, vb, vc;
+float ha, hb, hc;
 Uint16 count;
+float vdc;
+float tts;
 
 void main(void)
 {
@@ -327,6 +338,11 @@ void main(void)
     angle = 0;
     count = 0;
     ct = 0;
+    vdc = 351.0935;
+    tts = 0.000001;
+    adcout_ia = 0;
+    adcout_ib = 0;
+    adcout_ic = 0;
     for(;;)
     {
         if(switch_1 == 1)
@@ -343,22 +359,26 @@ void main(void)
             Ta = 4500*d_a+4500;
             Tb = 4500*d_b+4500;
             Tc = 4500*d_c+4500;
+            float a_gain = (Wc*Ts)/(2+(Wc*Ts));
+            float c_gain = (2-(Wc*Ts))/(2+(Wc*Ts));
 
             //iv_gain = 0.1*(u[1]-0.1)+0.05;
-            i_a = 0.5+(iv_gain*(2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0);    // IA 측정
-            i_b = 0.5+(iv_gain*(2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0);    // IB 측정
-            i_c = 0.5+(iv_gain*(2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0);    // IC 측정
-            ct +=0.000001;
-            if(ct > 0.0002)
-            {
-                ct = 0;
-            }
-            six_step_switch(Ts_pwm,y[0],y[1],y[2],ct);
-            va = y2[0]*INV3;
-            vb = y2[1]*INV3;
-            vc = y2[2]*INV3;
+            i_a = -(2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
+            i_b = -(2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
+            i_c = -(2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
 
-            abc2dq(va,vb,vc);
+            adcout_ia = a_gain*i_a+a_gain*adc_ia+c_gain*adcout_ia;
+            adcout_ib = a_gain*i_b+a_gain*adc_ib+c_gain*adcout_ib;
+            adcout_ic = a_gain*i_c+a_gain*adc_ic+c_gain*adcout_ic;
+
+            adc_ia = i_a;
+            adc_ib = i_b;
+            adc_ic = i_c;
+            //six_step_switch(Ts_pwm,d_a,d_b,d_c);
+            //six_step_switch(Ts_pwm,y[0],y[1],y[2]);
+            //six_step_switch(Ts_pwm,y[0],y[1],y[2],ct);
+
+            abc2dq(y[0],y[1],y[2]);
             EPwm3Regs.ETSEL.bit.SOCAEN = 1;
             EPwm3Regs.TBCTL.bit.CTRMODE = 0;
 
@@ -435,58 +455,13 @@ epwm8_isr(void)
 }
 void abc2dq(float v1, float v2, float v3)
 {
-    th2 += theta_in;  // 0~2pi theta change
-    co2 = (float)cos(th2);
-    si2 = (float)sin(th2);
-    angle2 = th2*180/PI;
-    if(angle2 > 360)
-    {
-        th2 = 0;
-    }
-    co2 = (float)cos(th2);
-    si2 = (float)sin(th2);
+    Fa = 0.5*(2*v1-v2-v3);
+    Fb = 0.5*SQRT3*(v2-v3);
 
-    Fa = INV3*(2*v1-v2-v3);
-    Fb = SQRT3*(v2-v3);
-
-    y3[0] = co2*Fa+si2*Fb;
-    y3[1] = co2*Fb-si2*Fa;
+    y3[0] = co*Fa+si*Fb;
+    y3[1] = co*Fb-si*Fa;
 }
-void six_step_switch(float Ts, float i_a, float i_b, float i_c, float ct)
-{
-    ta1 = 0.5*(1-i_a)*Ts;
-    ta2 = 0.5*(1+i_a)*Ts;
-    tb1 = 0.5*(1-i_b)*Ts;
-    tb2 = 0.5*(1+i_b)*Ts;
-    tc1 = 0.5*(1-i_c)*Ts;
-    tc2 = 0.5*(1+i_c)*Ts;
 
-    if ((ct < ta1) || (ct >= ta2)) {
-      sa = 0;
-    }
-    else {
-      sa = 1;
-    }
-
-    if ((ct < tb1) || (ct >= tb2)) {
-      sb = 0;
-    }
-    else {
-      sb = 1;
-    }
-
-    if ((ct < tc1) || (ct >= tc2)) {
-      sc = 0;
-    }
-    else {
-      sc = 1;
-    }
-
-    ss = sa*4+sb*2+sc;
-
-    phase_voltage(ss,y2);
-
-}
 void phase_voltage(int ss,float *y2)
 {
     switch (ss) {

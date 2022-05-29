@@ -18,6 +18,16 @@ proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/fil
 proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/math.h
 proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/_defs.h
 proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/machine/_limits.h
+proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/libraries/math/IQmath/c28/include/IQmathLib.h
+proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/limits.h
+proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/libraries/control/DCL/c28/include/DCL.h
+proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/complex.h
+proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/stdlib.h
+proj08.obj: C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/stdlibf.h
+proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/ipark.h
+proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/svgen.h
+proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/park.h
+proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/clarke.h
 proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/device_support/f2806x/common/include/DSP28x_Project.h
 proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/device_support/f2806x/common/include/F2806x_Cla_typedefs.h
 proj08.obj: C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/device_support/f2806x/headers/include/F2806x_Device.h
@@ -87,6 +97,26 @@ C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/math.h:
 C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/_defs.h:
 
 C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/machine/_limits.h:
+
+C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/libraries/math/IQmath/c28/include/IQmathLib.h:
+
+C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/limits.h:
+
+C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/libraries/control/DCL/c28/include/DCL.h:
+
+C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/complex.h:
+
+C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/stdlib.h:
+
+C:/ti/ccs1110/ccs/tools/compiler/ti-cgt-c2000_21.6.0.LTS/include/stdlibf.h:
+
+C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/ipark.h:
+
+C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/svgen.h:
+
+C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/park.h:
+
+C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/libraries/utilities/math_blocks/include/v4.3/clarke.h:
 
 C:/ti/c2000/C2000Ware_MotorControl_SDK_3_03_00_00/c2000ware/device_support/f2806x/common/include/DSP28x_Project.h:
 

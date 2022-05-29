@@ -59,6 +59,13 @@
 #include <stdio.h>
 #include <file.h>
 #include <math.h>
+#include <IQmathLib.h>
+#include <DCL.h>
+#include <ipark.h>
+#include <svgen.h>
+#include <park.h>
+#include <clarke.h>
+
 //C:\ti\c2000\C2000Ware_MotorControl_SDK_3_03_00_00\libraries\utilities\types\include
 
 #include "DSP28x_Project.h"     // DSP28x Headerfile
@@ -67,7 +74,7 @@
 // Globals
 //
 
-#define PI 3.14159
+#define PI 3.14159265359
 #define SQRT3 0.57735
 #define INV3 0.33333
 
@@ -77,17 +84,14 @@
 extern void DSP28x_usDelay(Uint32 Count);
 
 // uvw_duty function
-void initsvpwm_duty(float va,float v2);
-void uvw_duty(int sn, float *y, float T1, float T2, float T3);
+void ipark_svgen(float32_t vd, float32_t vq);
+void clarke_park(float32_t in_a, float32_t in_b, float32_t in_c);
+void abc2dq(float32_t in_a1, float32_t in_b1, float32_t in_c1);
 
-// six-step switch
-void six_step_switch(float Ts, float Da, float Db, float Dc);
-void phase_voltage(int ss,float *y2);
-
-// abc to dq transform
-void abc2dq(float v1, float v2, float v3);
-// lookup table
-static int sector_sel[6] = {6, 2, 1, 4, 5, 3};
+IPARK ipark;
+SVGEN svgen;
+PARK park;
+CLARKE clarke;
 // ADC setup
 void configureADC(void);
 void configureEPWM(void);
@@ -115,20 +119,12 @@ float ref2;
 float fun_amp;
 
 float Wq;
-float Wc = 100;
+float Wc = 10000;
 float Ts = 0.0001;
 
-float a_gain;
-float c_gain;
+float32_t a_gain, c_gain;
 float ADCINTvalue;
 float ADCOUTvalue;
-
-float i_der;
-float i_de;
-float i_me;
-float i_de2;
-float i_me2;
-float i_me3;
 
 float i_a;
 float i_b;
@@ -141,10 +137,6 @@ float adc_ic;
 float adcout_ia;
 float adcout_ib;
 float adcout_ic;
-
-float d_a;
-float d_b;
-float d_c;
 
 float iv_gain;
 
@@ -175,10 +167,9 @@ float va,vb,i,j,k;
 float u[2];
 float ccc;
 float co_in;
-float rad_f = 0.0;
-float rad_t = 0.0;
-float rad_s = 0.0;
-float rad = 0;
+float32_t rad_f;
+float32_t rad_t;
+float32_t rad = 0;
 float angle, angle2;
 float input_fun;
 
@@ -197,18 +188,16 @@ float y[2];  // duty output
 float y2[2]; // duty - abc transform output
 float y3[2]; // alpha - beta to dq transform output
 
-// six step switch(voltage source inverter)
-float fs_pwm;
-float Ts_pwm;
-float pulse;
-int sa, sb, sc, ss;
-float Ts, ct;
-float ta1, ta2, tb1, tb2, tc1, tc2;
 // abc to dq transform
-float Fa, Fb, th2, co2, si2;
-float v1, v2, v3;
-float va, vb, vc;
-float ha, hb, hc;
+float32_t inv_alpha, alpha;
+float32_t inv_beta, beta;
+float32_t out_d, out_q;
+float32_t d_a,d_b,d_c;
+float32_t dout, qout, in_d, in_q;
+
+float32_t i_alpha, i_beta;
+
+float32_t i_dd, i_qq;
 Uint16 count;
 float vdc;
 float tts;
@@ -221,6 +210,10 @@ void main(void)
     // PLL, WatchDog, enable Peripheral Clocks
     // This example function is found in the F2806x_SysCtrl.c file.
     //
+
+
+
+
     InitSysCtrl();
 
     //
@@ -229,6 +222,7 @@ void main(void)
     // illustrates how to set the GPIO to its default state.
     //
     // InitGpio(); Skipped for this example
+    InitEPwm3Gpio();
     InitEPwm4Gpio();
     InitEPwm5Gpio();
     InitEPwm6Gpio();
@@ -323,78 +317,39 @@ void main(void)
     T = 0;
     F = 0.00001;
     u[0] = 0;  // vd_ref
-    u[1] = 0.1;  // vq_ref
+    u[1] = 0.01;  // vq_ref
 
     // pwm switching parameter
-    fs_pwm = 10000;
-    Ts_pwm = 1/fs_pwm;
     f = 10;
-    rad_f = 10;
-    rad_t = 0.0001;
+    rad_f = 0.1;
+    rad_t = 0.00005;
     rad = 0;
     co_in = 60;
     theta = 0;
     switch_1 = 0;
     angle = 0;
     count = 0;
-    ct = 0;
-    vdc = 351.0935;
-    tts = 0.000001;
+    in_d = 0; in_q = 0; dout = 0; qout = 0;
     adcout_ia = 0;
     adcout_ib = 0;
     adcout_ic = 0;
     for(;;)
     {
-        if(switch_1 == 1)
-        {
-            rad =2*PI*rad_f;      // 2*Pi*f(freq)
-            rad_s = 2*PI/rad_f;
-            theta_in =rad*rad_t;  // 적분 된 theta 값
-
-            initsvpwm_duty(u[0],u[1]);
-            d_a = y[0]-0.5;
-            d_b = y[1]-0.5;
-            d_c = y[2]-0.5;
-
-            Ta = 4500*d_a+4500;
-            Tb = 4500*d_b+4500;
-            Tc = 4500*d_c+4500;
-            float a_gain = (Wc*Ts)/(2+(Wc*Ts));
-            float c_gain = (2-(Wc*Ts))/(2+(Wc*Ts));
-
-            //iv_gain = 0.1*(u[1]-0.1)+0.05;
-            i_a = -(2048.0-(float)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
-            i_b = -(2048.0-(float)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
-            i_c = -(2048.0-(float)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
-
-            adcout_ia = a_gain*i_a+a_gain*adc_ia+c_gain*adcout_ia;
-            adcout_ib = a_gain*i_b+a_gain*adc_ib+c_gain*adcout_ib;
-            adcout_ic = a_gain*i_c+a_gain*adc_ic+c_gain*adcout_ic;
-
-            adc_ia = i_a;
-            adc_ib = i_b;
-            adc_ic = i_c;
-            //six_step_switch(Ts_pwm,d_a,d_b,d_c);
-            //six_step_switch(Ts_pwm,y[0],y[1],y[2]);
-            //six_step_switch(Ts_pwm,y[0],y[1],y[2],ct);
-
-            abc2dq(y[0],y[1],y[2]);
-            EPwm3Regs.ETSEL.bit.SOCAEN = 1;
-            EPwm3Regs.TBCTL.bit.CTRMODE = 0;
-
-            EPwm3Regs.ETSEL.bit.SOCBEN = 1;
-            EPwm3Regs.TBCTL.bit.CTRMODE = 0;
-        }
-        else if(switch_1 == 0)
-        {
-            theta = 0;
-        }
-
     }
+
 }
 __interrupt void
 adc1_isr(void)
 {
+    rad =2*PI*4*rad_f;      // 2*Pi*f(freq)
+    theta_in =rad*rad_t;  // 적분 된 theta 값
+    ipark_svgen(u[0],u[1]);
+
+    i_a = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
+    i_b = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
+    i_c = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
+
+    clarke_park(i_a, i_b, i_c);
     AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 
@@ -453,138 +408,71 @@ epwm8_isr(void)
     //
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP3;
 }
-void abc2dq(float v1, float v2, float v3)
+void abc2dq(float32_t in_a1, float32_t in_b1, float32_t in_c1)
 {
-    Fa = 0.5*(2*v1-v2-v3);
-    Fb = 0.5*SQRT3*(v2-v3);
-
-    y3[0] = co*Fa+si*Fb;
-    y3[1] = co*Fb-si*Fa;
-}
-
-void phase_voltage(int ss,float *y2)
-{
-    switch (ss) {
-    case 0:
-      y2[0] =  0;
-      y2[1] =  0;
-      y2[2] =  0;
-      break;
-    case 1:
-      y2[0] = -1;
-      y2[1] = -1;
-      y2[2] =  2;
-      break;
-    case 2:
-      y2[0] = -1;
-      y2[1] =  2;
-      y2[2] = -1;
-      break;
-    case 3:
-      y2[0] = -2;
-      y2[1] =  1;
-      y2[2] =  1;
-      break;
-    case 4:
-      y2[0] =  2;
-      y2[1] = -1;
-      y2[2] = -1;
-      break;
-    case 5:
-      y2[0] =  1;
-      y2[1] = -2;
-      y2[2] =  1;
-      break;
-    case 6:
-      y2[0] =  1;
-      y2[1] =  1;
-      y2[2] = -2;
-      break;
-    default:
-      y2[0] =  0;
-      y2[1] =  0;
-      y2[2] =  0;
-    }
-}
-void initsvpwm_duty(float vd_ref, float vq_ref)
-{
-    theta += theta_in;  // 0~2pi theta change
-    co = (float)cos(theta);
-    si = (float)sin(theta);
+    theta += theta_in;
+    co = cos(theta);
+    si = sin(theta);
     angle = theta*180/PI;
     if(angle > 360)
     {
         theta = 0;
     }
-    va = vd_ref*co-vq_ref*si;
-    vb = vd_ref*si+vq_ref*co;
 
-    i = SQRT3H*va-0.5*vb;
-    j = vb;
-    k = (-1)*SQRT3H*va-0.5*vb;
-    N = SIGN(i)+2*SIGN(j)+4*SIGN(k);
+    i_alpha = in_a1-0.5*in_b1-0.5*in_c1;
+    i_beta = (SQRT3*0.5)*(in_b1-in_c1);
 
-    sector = sector_sel[N-1];
-    uvw_duty(sector,y,i,j,k);
-
+    i_dd = co*i_alpha+si*i_beta;
+    i_qq = co*i_beta-si*i_alpha;
 }
-void uvw_duty(int sn, float *y, float i, float j, float k)
+void clarke_park(float32_t in_a, float32_t in_b, float32_t in_c)
 {
-    float T1,T2,T0;
-    switch (sn) {
-      case 1:
-        T1 = i;
-        T2 = j;
-        T0 = 1-T1-T2;
-        y[0] = T1+T2+0.5*T0;
-        y[1] = T2+0.5*T0;
-        y[2] = 0.5*T0;
-        break;
-      case 2:
-        T1 = (-1)*k;
-        T2 = (-1)*i;
-        T0 = 1-T1-T2;
-        y[0] = T1+0.5*T0;
-        y[1] = T1+T2+0.5*T0;
-        y[2] = 0.5*T0;
-        break;
-      case 3:
-        T1 = j;
-        T2 = k;
-        T0 = 1-T1-T2;
-        y[0] = 0.5*T0;
-        y[1] = T1+T2+0.5*T0;
-        y[2] = T2+0.5*T0;
-        break;
-      case 4:
-        T1 = (-1)*i;
-        T2 = (-1)*j;
-        T0 = 1-T1-T2;
-        y[0] = 0.5*T0;
-        y[1] = T1+0.5*T0;
-        y[2] = T1+T2+0.5*T0;
-        break;
-      case 5:
-        T1 = k;
-        T2 = i;
-        T0 = 1-T1-T2;
-        y[0] = T2+0.5*T0;
-        y[1] = 0.5*T0;
-        y[2] = T1+T2+0.5*T0;
-        break;
-      case 6:
-        T1 = (-1)*j;
-        T2 = (-1)*k;
-        T0 = 1-T1-T2;
-        y[0] = T1+T2+0.5*T0;
-        y[1] = 0.5*T0;
-        y[2] = T1+0.5*T0;
-        break;
-      default:
-        y[0] =  0;
-        y[1] =  0;
-        y[2] =  0;
-      }
+    clarke.As = in_a;
+    clarke.Bs = in_b;
+    clarke.Cs = in_c;
+    runClarke(&clarke);
+
+    alpha = clarke.Alpha;
+    beta = clarke.Beta;
+
+    park.Alpha = clarke.Alpha;
+    park.Beta = clarke.Beta;
+    park.Sine = sin(theta);
+    park.Cosine = cos(theta);
+    park.Angle = theta;
+    runPark(&park);
+
+    out_d = park.Ds;
+    out_q = park.Qs;
+}
+void ipark_svgen(float32_t vd, float32_t vq)
+{
+    theta += theta_in;
+    angle = theta*180/PI;
+    if(angle > 360)
+    {
+        theta = 0;
+    }
+    ipark.Ds = vd;
+    ipark.Qs = vq;
+    ipark.Sine = sin(theta);
+    ipark.Cosine = cos(theta);
+    ipark.Angle = theta;
+    runIPark(&ipark);
+
+    inv_alpha = ipark.Alpha;
+    inv_beta = ipark.Beta;
+
+    svgen.Ualpha = ipark.Alpha;
+    svgen.Ubeta = ipark.Beta;
+
+    runSVGenDQ(&svgen);
+    d_a = svgen.Ta;
+    d_b = svgen.Tb;
+    d_c = svgen.Tc;
+    Ta = (Uint16)(2250.0*d_a+2250.0);
+    Tb = (Uint16)(2250.0*d_b+2250.0);
+    Tc = (Uint16)(2250.0*d_c+2250.0);
 }
 void configureADC(void)
 {
@@ -643,16 +531,19 @@ void configureEPWM(void)
 {
     EPwm3Regs.ETSEL.bit.SOCAEN  = 1;        // Enable SOC on A group
     EPwm3Regs.ETSEL.bit.SOCASEL = 4;        // Select SOC from CMPA on upcount
-    EPwm3Regs.ETPS.bit.SOCAPRD  = 2;        // Generate pulse on 1st event
-    EPwm3Regs.CMPA.half.CMPA    = 2048;   // Set compare A value
-    EPwm3Regs.TBPRD             = 4096;   // Set period for ePWM1
+    EPwm3Regs.ETPS.bit.SOCAPRD  = 1;        // Generate pulse on 1st event
+    EPwm3Regs.CMPA.half.CMPA    = 2250;   // Set compare A value
+    EPwm3Regs.TBPRD             = 4499;   // Set period for ePWM1
     EPwm3Regs.TBCTL.bit.HSPCLKDIV = 0;
+    EPwm3Regs.TBCTL.bit.CLKDIV = 0;
     EPwm3Regs.TBCTL.bit.CTRMODE = 0;        // count up and start
+    EPwm3Regs.AQCTLA.bit.CAU = AQ_CLEAR;      // Set PWM1A on Zero
+    EPwm3Regs.AQCTLA.bit.ZRO = AQ_SET;    // Clear PWM1A on event A, up count
 }
 void initEPWM4()
 {
     EPwm4Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm4Regs.TBPRD = 8999;       // Set timer period
+    EPwm4Regs.TBPRD = 4499;       // Set timer period
     EPwm4Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
     EPwm4Regs.TBPHS.half.TBPHS = 0x0000;       // Phase is 0
     EPwm4Regs.TBCTR = 0x0000;                  // Clear counter
@@ -691,7 +582,7 @@ void initEPWM4()
 void initEPWM5()
 {
     EPwm5Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm5Regs.TBPRD = 8999;       // Set timer period
+    EPwm5Regs.TBPRD = 4499;       // Set timer period
     EPwm5Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
     EPwm5Regs.TBPHS.half.TBPHS = 0;       // Phase is 0
     EPwm5Regs.TBCTR = 0x0000;                  // Clear counter
@@ -730,7 +621,7 @@ void initEPWM5()
 void initEPWM6()
 {
     EPwm6Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm6Regs.TBPRD = 8999;       // Set timer period
+    EPwm6Regs.TBPRD = 4499;       // Set timer period
     EPwm6Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
     EPwm6Regs.TBPHS.half.TBPHS = 0;       // Phase is 0
     EPwm6Regs.TBCTR = 0x0000;                  // Clear counter
@@ -769,7 +660,7 @@ void initEPWM6()
 void initEPWM7()
 {
     EPwm7Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm7Regs.TBPRD = 8999;       // Set timer period
+    EPwm7Regs.TBPRD = 4499;       // Set timer period
     EPwm7Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
     EPwm7Regs.TBPHS.half.TBPHS = 0x0000;       // Phase is 0
     EPwm7Regs.TBCTR = 0x0000;                  // Clear counter
@@ -809,7 +700,7 @@ void initEPWM7()
 void initEPWM8()
 {
     EPwm8Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
-    EPwm8Regs.TBPRD = 8999;       // Set timer period
+    EPwm8Regs.TBPRD = 4499;       // Set timer period
     EPwm8Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
     EPwm8Regs.TBPHS.half.TBPHS = 0x0000;       // Phase is 0
     EPwm8Regs.TBCTR = 0x0000;                  // Clear counter

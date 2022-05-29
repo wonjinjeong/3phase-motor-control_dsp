@@ -78,6 +78,8 @@
 #define SQRT3 0.57735
 #define INV3 0.33333
 
+#define SQRT3T2 0.8660254038
+#define S2T3 0.6666666
 #define SQRT3H  0.866025403784439   /* sqrt(3)/2 */
 #define SIGN(x)  (((x) > 0) ? 1:0)
 
@@ -87,6 +89,7 @@ extern void DSP28x_usDelay(Uint32 Count);
 void ipark_svgen(float32_t vd, float32_t vq);
 void clarke_park(float32_t in_a, float32_t in_b, float32_t in_c);
 void abc2dq(float32_t in_a1, float32_t in_b1, float32_t in_c1);
+void dq2abc(float32_t in_d1, float32_t in_q1);
 
 IPARK ipark;
 SVGEN svgen;
@@ -194,9 +197,10 @@ float32_t inv_beta, beta;
 float32_t out_d, out_q;
 float32_t d_a,d_b,d_c;
 float32_t dout, qout, in_d, in_q;
-
+float32_t in_d1, in_q1;
+float32_t out_alpha, out_beta;
+float32_t out_a, out_b, out_c;
 float32_t i_alpha, i_beta;
-
 float32_t i_dd, i_qq;
 Uint16 count;
 float vdc;
@@ -341,15 +345,32 @@ void main(void)
 __interrupt void
 adc1_isr(void)
 {
-    rad =2*PI*4*rad_f;      // 2*Pi*f(freq)
-    theta_in =rad*rad_t;  // 적분 된 theta 값
-    ipark_svgen(u[0],u[1]);
+    rad = 2*PI*rad_f;      // 2*Pi*f(freq)
+    theta_in = rad*rad_t;  // 적분 된 theta 값
+    dq2abc(u[0], u[1]);
 
-    i_a = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA 측정
-    i_b = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB 측정
-    i_c = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC 측정
+    Ta = (Uint16)(out_a*2250.0+2250.0);
+    Tb = (Uint16)(out_b*2250.0+2250.0);
+    Tc = (Uint16)(out_c*2250.0+2250.0);
 
-    clarke_park(i_a, i_b, i_c);
+    a_gain = (Wc*Ts)/(2+(Wc*Ts));
+    c_gain = (2-(Wc*Ts))/(2+(Wc*Ts));
+
+    i_a = ((float32_t)AdcResult.ADCRESULT1-2020.0)*0.01;    // IA 측정
+    i_b = ((float32_t)AdcResult.ADCRESULT2-2020.0)*0.01;;    // IB 측정
+    i_c = ((float32_t)AdcResult.ADCRESULT3-2020.0)*0.01;;    // IC 측정
+
+    adcout_ia = a_gain*i_a+a_gain*adc_ia+c_gain*adcout_ia;
+    adcout_ib = a_gain*i_b+a_gain*adc_ib+c_gain*adcout_ib;
+    adcout_ic = a_gain*i_c+a_gain*adc_ic+c_gain*adcout_ic;
+
+    adc_ia = i_a;
+    adc_ib = i_b;
+    adc_ic = i_c;
+    abc2dq(i_a,i_b,i_c);
+    EPwm4Regs.CMPA.half.CMPA = Ta;
+    EPwm5Regs.CMPA.half.CMPA = Tb;
+    EPwm6Regs.CMPA.half.CMPA = Tc;
     AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 
@@ -358,7 +379,6 @@ adc1_isr(void)
 __interrupt void
 epwm4_isr(void)
 {
-    EPwm4Regs.CMPA.half.CMPA = Ta;
     EPwm4Regs.ETCLR.bit.INT = 1;
 
     //
@@ -369,7 +389,6 @@ epwm4_isr(void)
 __interrupt void
 epwm5_isr(void)
 {
-    EPwm5Regs.CMPA.half.CMPA = Tb;
     EPwm5Regs.ETCLR.bit.INT = 1;
 
     //
@@ -380,7 +399,6 @@ epwm5_isr(void)
 __interrupt void
 epwm6_isr(void)
 {
-    EPwm6Regs.CMPA.half.CMPA = Tc;
     EPwm6Regs.ETCLR.bit.INT = 1;
 
     //
@@ -408,7 +426,7 @@ epwm8_isr(void)
     //
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP3;
 }
-void abc2dq(float32_t in_a1, float32_t in_b1, float32_t in_c1)
+void dq2abc(float32_t in_d1, float32_t in_q1)
 {
     theta += theta_in;
     co = cos(theta);
@@ -418,61 +436,20 @@ void abc2dq(float32_t in_a1, float32_t in_b1, float32_t in_c1)
     {
         theta = 0;
     }
+    out_alpha = co*in_d1-si*in_q1;
+    out_beta = si*in_d1+co*in_q1;
 
+    out_a = S2T3*(out_alpha);
+    out_b = S2T3*(SQRT3T2*out_beta-0.5*out_alpha);
+    out_c = S2T3*(-0.5*out_alpha-SQRT3T2*out_beta);
+}
+void abc2dq(float32_t in_a1, float32_t in_b1, float32_t in_c1)
+{
     i_alpha = in_a1-0.5*in_b1-0.5*in_c1;
-    i_beta = (SQRT3*0.5)*(in_b1-in_c1);
+    i_beta = SQRT3T2*(in_b1-in_c1);
 
     i_dd = co*i_alpha+si*i_beta;
     i_qq = co*i_beta-si*i_alpha;
-}
-void clarke_park(float32_t in_a, float32_t in_b, float32_t in_c)
-{
-    clarke.As = in_a;
-    clarke.Bs = in_b;
-    clarke.Cs = in_c;
-    runClarke(&clarke);
-
-    alpha = clarke.Alpha;
-    beta = clarke.Beta;
-
-    park.Alpha = clarke.Alpha;
-    park.Beta = clarke.Beta;
-    park.Sine = sin(theta);
-    park.Cosine = cos(theta);
-    park.Angle = theta;
-    runPark(&park);
-
-    out_d = park.Ds;
-    out_q = park.Qs;
-}
-void ipark_svgen(float32_t vd, float32_t vq)
-{
-    theta += theta_in;
-    angle = theta*180/PI;
-    if(angle > 360)
-    {
-        theta = 0;
-    }
-    ipark.Ds = vd;
-    ipark.Qs = vq;
-    ipark.Sine = sin(theta);
-    ipark.Cosine = cos(theta);
-    ipark.Angle = theta;
-    runIPark(&ipark);
-
-    inv_alpha = ipark.Alpha;
-    inv_beta = ipark.Beta;
-
-    svgen.Ualpha = ipark.Alpha;
-    svgen.Ubeta = ipark.Beta;
-
-    runSVGenDQ(&svgen);
-    d_a = svgen.Ta;
-    d_b = svgen.Tb;
-    d_c = svgen.Tc;
-    Ta = (Uint16)(2250.0*d_a+2250.0);
-    Tb = (Uint16)(2250.0*d_b+2250.0);
-    Tc = (Uint16)(2250.0*d_c+2250.0);
 }
 void configureADC(void)
 {
@@ -496,10 +473,6 @@ void configureADC(void)
     AdcRegs.INTSEL1N2.bit.INT1E = 1;  // enable ADCINT1
     AdcRegs.INTSEL1N2.bit.INT1CONT = 0; // disable ADCINT1 Continuous mode
     AdcRegs.INTSEL1N2.bit.INT1SEL = 1;
-
-    AdcRegs.ADCSOC0CTL.bit.CHSEL = 8;   // ADCINB0
-    AdcRegs.ADCSOC0CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
-    AdcRegs.ADCSOC0CTL.bit.ACQPS = 6;
 
     AdcRegs.ADCSOC1CTL.bit.CHSEL = 3;   // ADCINA3 - IA
     AdcRegs.ADCSOC1CTL.bit.TRIGSEL = 9; // ADCSOCA / EPWM3
@@ -561,7 +534,7 @@ void initEPWM4()
     //
     // Set Compare values
     //
-    EPwm4Regs.CMPA.half.CMPA = 450;    // Set compare A value
+    EPwm4Regs.CMPA.half.CMPA = 2250;    // Set compare A value
 
     //
     // Set actions
@@ -584,7 +557,7 @@ void initEPWM5()
     EPwm5Regs.TBCTL.bit.CTRMODE = TB_COUNT_UP; // Count up
     EPwm5Regs.TBPRD = 4499;       // Set timer period
     EPwm5Regs.TBCTL.bit.PHSEN = TB_DISABLE;    // Disable phase loading
-    EPwm5Regs.TBPHS.half.TBPHS = 0;       // Phase is 0
+    EPwm5Regs.TBPHS.half.TBPHS = 0x0000;       // Phase is 0
     EPwm5Regs.TBCTR = 0x0000;                  // Clear counter
     EPwm5Regs.TBCTL.bit.HSPCLKDIV = 0;   // Clock ratio to SYSCLKOUT
     EPwm5Regs.TBCTL.bit.CLKDIV = 0;
@@ -600,16 +573,16 @@ void initEPWM5()
     //
     // Set Compare values
     //
-    EPwm5Regs.CMPA.half.CMPA = 450;    // Set compare A value
+    EPwm5Regs.CMPA.half.CMPA = 2250;    // Set compare A value
 
     //
     // Set actions
     //
-    EPwm5Regs.AQCTLA.bit.CAU = AQ_SET;      // Set PWM1A on Zero
-    EPwm5Regs.AQCTLA.bit.ZRO = AQ_CLEAR;    // Clear PWM1A on event A, up count
+    EPwm5Regs.AQCTLA.bit.CAU = AQ_CLEAR;      // Set PWM1A on Zero
+    EPwm5Regs.AQCTLA.bit.ZRO = AQ_SET;    // Clear PWM1A on event A, up count
 
-    EPwm5Regs.AQCTLB.bit.CAU = AQ_CLEAR;      // Set PWM1B on Zero
-    EPwm5Regs.AQCTLB.bit.ZRO = AQ_SET;    // Clear PWM1B on event B, up count
+    EPwm5Regs.AQCTLB.bit.CAU = AQ_SET;      // Set PWM1B on Zero
+    EPwm5Regs.AQCTLB.bit.ZRO = AQ_CLEAR;    // Clear PWM1B on event B, up count
 
     //
     // Interrupt where we will change the Compare Values
@@ -639,7 +612,7 @@ void initEPWM6()
     //
     // Set Compare values
     //
-    EPwm6Regs.CMPA.half.CMPA = 450;    // Set compare A value
+    EPwm6Regs.CMPA.half.CMPA = 2250;    // Set compare A value
 
     //
     // Set actions

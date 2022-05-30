@@ -123,7 +123,7 @@ float fun_amp;
 
 float Wq;
 float Wc = 10000;
-float Ts = 0.0001;
+float Ts = 0.00005;
 
 float32_t a_gain, c_gain;
 float ADCINTvalue;
@@ -145,7 +145,8 @@ float iv_gain;
 
 float i_q;
 float i_qq;
-float error;
+float error_q;
+float error_d;
 float error_pre;
 float error_sum;
 
@@ -155,11 +156,12 @@ float Ki;
 float T;
 Uint16 w;
 
-float Umax;
-float Umin;
+float Umax = 0.2;
+float Umin = -0.2;
 
 float p_control;
 float i_control;
+float q_control;
 
 float Ta,Tb,Tc;
 float F;
@@ -173,6 +175,7 @@ float co_in;
 float32_t rad_f;
 float32_t rad_t;
 float32_t rad = 0;
+float input_d, input_q;
 float angle, angle2;
 float input_fun;
 
@@ -337,6 +340,11 @@ void main(void)
     adcout_ia = 0;
     adcout_ib = 0;
     adcout_ic = 0;
+    Kp = 0.194;
+    Ki = 0.0127;
+    input_d = u[0];
+    input_q = u[1];
+    error_sum = 0;
     for(;;)
     {
     }
@@ -345,32 +353,59 @@ void main(void)
 __interrupt void
 adc1_isr(void)
 {
-    rad = 2*PI*rad_f;      // 2*Pi*f(freq)
+    rad = 2*PI*4*rad_f;      // 2*Pi*f(freq)
     theta_in = rad*rad_t;  // 적분 된 theta 값
-    dq2abc(u[0], u[1]);
+    if(angle >180)
+    {
+        input_q = -u[1];
+    }
+    else if(angle <180)
+    {
+        input_q = u[1];
+    }
+    input_d = u[0];
 
-    Ta = (Uint16)(out_a*2250.0+2250.0);
-    Tb = (Uint16)(out_b*2250.0+2250.0);
-    Tc = (Uint16)(out_c*2250.0+2250.0);
+    error_d = u[0] - out_d;
+    error_q = input_q - out_q; // (desired)iq - (measure) iq
 
-    a_gain = (Wc*Ts)/(2+(Wc*Ts));
-    c_gain = (2-(Wc*Ts))/(2+(Wc*Ts));
+    // Kp, Ki는 time constant = L/R로 구해서 대입
 
-    i_a = ((float32_t)AdcResult.ADCRESULT1-2020.0)*0.01;    // IA 측정
-    i_b = ((float32_t)AdcResult.ADCRESULT2-2020.0)*0.01;;    // IB 측정
-    i_c = ((float32_t)AdcResult.ADCRESULT3-2020.0)*0.01;;    // IC 측정
+    i_q = 0.067*(Kp*error_q+Ki*error_sum);
 
-    adcout_ia = a_gain*i_a+a_gain*adc_ia+c_gain*adcout_ia;
-    adcout_ib = a_gain*i_b+a_gain*adc_ib+c_gain*adcout_ib;
-    adcout_ic = a_gain*i_c+a_gain*adc_ic+c_gain*adcout_ic;
+    if(i_q > Umax)
+    {
+        i_q = Umax;
+    }
+    else if(i_q <Umin)
+    {
+        i_q = Umin;
+    }
+    error_sum += error_q;
+    ipark_svgen(input_d,i_q);
 
-    adc_ia = i_a;
-    adc_ib = i_b;
-    adc_ic = i_c;
-    abc2dq(i_a,i_b,i_c);
-    EPwm4Regs.CMPA.half.CMPA = Ta;
-    EPwm5Regs.CMPA.half.CMPA = Tb;
-    EPwm6Regs.CMPA.half.CMPA = Tc;
+    i_a = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA
+    i_b = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB
+    i_c = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC
+    if(input_q>0)
+    {
+        EPwm7Regs.CMPA.half.CMPA = 2250*3*input_q+2250;
+        EPwm8Regs.CMPA.half.CMPA = 2250*3*out_q+2250;
+
+        EPwm4Regs.CMPA.half.CMPA = Ta;
+        EPwm5Regs.CMPA.half.CMPA = Tb;
+        EPwm6Regs.CMPA.half.CMPA = Tc;
+        clarke_park(i_a, i_b, i_c);
+    }
+    else if(input_q < 0)
+    {
+        EPwm7Regs.CMPA.half.CMPA = 2250*3*input_q+2250;
+        EPwm8Regs.CMPA.half.CMPA = 2250*3*out_q+2250;
+
+        EPwm4Regs.CMPA.half.CMPA = Tc;
+        EPwm5Regs.CMPA.half.CMPA = Tb;
+        EPwm6Regs.CMPA.half.CMPA = Ta;
+        clarke_park(i_c, i_b, i_a);
+    }
     AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 
@@ -426,30 +461,54 @@ epwm8_isr(void)
     //
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP3;
 }
-void dq2abc(float32_t in_d1, float32_t in_q1)
+void clarke_park(float32_t in_a, float32_t in_b, float32_t in_c)
+{
+    clarke.As = in_a;
+    clarke.Bs = in_b;
+    clarke.Cs = in_c;
+    runClarke(&clarke);
+
+    alpha = clarke.Alpha;
+    beta = clarke.Beta;
+
+    park.Alpha = clarke.Alpha;
+    park.Beta = clarke.Beta;
+    park.Sine = sin(theta);
+    park.Cosine = cos(theta);
+    park.Angle = theta;
+    runPark(&park);
+
+    out_d = park.Ds;
+    out_q = park.Qs;
+}
+void ipark_svgen(float32_t vd, float32_t vq)
 {
     theta += theta_in;
-    co = cos(theta);
-    si = sin(theta);
     angle = theta*180/PI;
     if(angle > 360)
     {
         theta = 0;
     }
-    out_alpha = co*in_d1-si*in_q1;
-    out_beta = si*in_d1+co*in_q1;
+    ipark.Ds = vd;
+    ipark.Qs = vq;
+    ipark.Sine = sin(theta);
+    ipark.Cosine = cos(theta);
+    ipark.Angle = theta;
+    runIPark(&ipark);
 
-    out_a = S2T3*(out_alpha);
-    out_b = S2T3*(SQRT3T2*out_beta-0.5*out_alpha);
-    out_c = S2T3*(-0.5*out_alpha-SQRT3T2*out_beta);
-}
-void abc2dq(float32_t in_a1, float32_t in_b1, float32_t in_c1)
-{
-    i_alpha = in_a1-0.5*in_b1-0.5*in_c1;
-    i_beta = SQRT3T2*(in_b1-in_c1);
+    inv_alpha = ipark.Alpha;
+    inv_beta = ipark.Beta;
 
-    i_dd = co*i_alpha+si*i_beta;
-    i_qq = co*i_beta-si*i_alpha;
+    svgen.Ualpha = ipark.Alpha;
+    svgen.Ubeta = ipark.Beta;
+
+    runSVGenDQ(&svgen);
+    d_a = svgen.Ta;
+    d_b = svgen.Tb;
+    d_c = svgen.Tc;
+    Ta = (Uint16)(2250.0*d_a+2250.0);
+    Tb = (Uint16)(2250.0*d_b+2250.0);
+    Tc = (Uint16)(2250.0*d_c+2250.0);
 }
 void configureADC(void)
 {

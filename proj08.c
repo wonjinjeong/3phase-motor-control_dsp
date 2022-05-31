@@ -167,6 +167,7 @@ float Ta,Tb,Tc;
 float F;
 //SVpwm_duty tranformation
 Uint16 switch_1;
+Uint16 cnt;
 int sector,N;
 float va,vb,i,j,k;
 float u[2];
@@ -324,7 +325,7 @@ void main(void)
     T = 0;
     F = 0.00001;
     u[0] = 0;  // vd_ref
-    u[1] = 0.01;  // vq_ref
+    u[1] = 0.1;  // vq_ref
 
     // pwm switching parameter
     f = 10;
@@ -336,12 +337,16 @@ void main(void)
     switch_1 = 0;
     angle = 0;
     count = 0;
+    cnt= 0;
     in_d = 0; in_q = 0; dout = 0; qout = 0;
     adcout_ia = 0;
     adcout_ib = 0;
     adcout_ic = 0;
-    Kp = 0.194;
-    Ki = 0.0127;
+
+    // time constant = 284us, R = 0.74ohm, L = 2.10*10^-4, vdc = 24
+    Kp = 0.193;    // 0.387
+    Ki = 0.0341;   // 0.0214
+
     input_d = u[0];
     input_q = u[1];
     error_sum = 0;
@@ -355,13 +360,10 @@ adc1_isr(void)
 {
     rad = 2*PI*4*rad_f;      // 2*Pi*f(freq)
     theta_in = rad*rad_t;  // 적분 된 theta 값
-    if(angle >180)
+    if(cnt>rad_f)
     {
-        input_q = -u[1];
-    }
-    else if(angle <180)
-    {
-        input_q = u[1];
+        input_q = -1*input_q;
+        cnt = 0;
     }
     input_d = u[0];
 
@@ -386,25 +388,26 @@ adc1_isr(void)
     i_a = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA
     i_b = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB
     i_c = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC
-    if(input_q>0)
+
+    if(input_q > 0)
     {
+        clarke_park(i_a, i_b, i_c);
         EPwm7Regs.CMPA.half.CMPA = 2250*3*input_q+2250;
         EPwm8Regs.CMPA.half.CMPA = 2250*3*out_q+2250;
 
         EPwm4Regs.CMPA.half.CMPA = Ta;
         EPwm5Regs.CMPA.half.CMPA = Tb;
         EPwm6Regs.CMPA.half.CMPA = Tc;
-        clarke_park(i_a, i_b, i_c);
     }
     else if(input_q < 0)
     {
+        clarke_park(i_c, i_b, i_a);
         EPwm7Regs.CMPA.half.CMPA = 2250*3*input_q+2250;
         EPwm8Regs.CMPA.half.CMPA = 2250*3*out_q+2250;
 
         EPwm4Regs.CMPA.half.CMPA = Tc;
         EPwm5Regs.CMPA.half.CMPA = Tb;
         EPwm6Regs.CMPA.half.CMPA = Ta;
-        clarke_park(i_c, i_b, i_a);
     }
     AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
@@ -487,6 +490,7 @@ void ipark_svgen(float32_t vd, float32_t vq)
     angle = theta*180/PI;
     if(angle > 360)
     {
+        cnt++;
         theta = 0;
     }
     ipark.Ds = vd;

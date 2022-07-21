@@ -21,32 +21,32 @@
 // $Copyright:
 // Copyright (C) 2009-2021 Texas Instruments Incorporated - http://www.ti.com/
 //
-// Redistribution and use in source and binary forms, with or without 
-// modification, are permitted provided that the following conditions 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
 // are met:
-// 
-//   Redistributions of source code must retain the above copyright 
+//
+//   Redistributions of source code must retain the above copyright
 //   notice, this list of conditions and the following disclaimer.
-// 
+//
 //   Redistributions in binary form must reproduce the above copyright
-//   notice, this list of conditions and the following disclaimer in the 
-//   documentation and/or other materials provided with the   
+//   notice, this list of conditions and the following disclaimer in the
+//   documentation and/or other materials provided with the
 //   distribution.
-// 
+//
 //   Neither the name of Texas Instruments Incorporated nor the names of
 //   its contributors may be used to endorse or promote products derived
 //   from this software without specific prior written permission.
-// 
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
 // LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
 // DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // $
 //###########################################################################
@@ -128,6 +128,7 @@ float ref2;
 float fun_amp;
 
 float Wq;
+float Wsq;
 float Wc = 10000;
 float Ts = 0.00005;
 
@@ -155,6 +156,7 @@ float error_q;
 float error_d;
 float error_pre;
 float error_sum;
+float error_sum2;
 float error_s;
 float error_s_sum;
 
@@ -167,8 +169,8 @@ float Ki_s;
 float T;
 Uint16 w;
 
-float Umax = 0.6;
-float Umin = -0.6;
+float Umax = 0.49;
+float Umin = -0.49;
 
 float p_control;
 float i_control;
@@ -228,19 +230,32 @@ Uint16 init_hall_cnt;
 Uint16 Hall_flag;
 Uint16 Hall_flag2;
 Uint32 Hallstatecnt;
-Uint32 Hallcnt;
-Uint32 Hallcnt2;
+float Hallcnt;
+float Hallcnt2;
+float Hallcnt3;
 Uint16 delay_flag;
 Uint16 delay_flag2;
+Uint16 delay_flag3;
 Uint16 speed_control_cnt;
 Uint16 speed_cnt;
 Uint16 theta_cnt;
 Uint16 rad_flag;
 float speed_hall;
 float speed_hall2;
+float speed_hall3;
+float med_speed;
 float u_q;
 float offset_speed;
 float max_rad;
+float Kv_i;
+float comp_speed;
+
+float alpha_gain1;
+float alpha_gain2;
+float out_speed;
+float pre_speed;
+float UUmin;
+float i_d;
 void main(void)
 {
 
@@ -277,13 +292,15 @@ void main(void)
     // Inputs are synchronized to SYSCLKOUT by default.
     // Comment out other unwanted lines.
     //
-    GpioCtrlRegs.GPAQSEL2.bit.GPIO24 = 0; // Synch to SYSCLKOUT GPIO24
-    GpioCtrlRegs.GPAQSEL2.bit.GPIO25 = 0; // Synch to SYSCLKOUT GPIO25
-    GpioCtrlRegs.GPAQSEL2.bit.GPIO26 = 0; // Synch to SYSCLKOUT GPIO26
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO24 = 1; // Synch to SYSCLKOUT GPIO24
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO25 = 1; // Synch to SYSCLKOUT GPIO25
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO26 = 1; // Synch to SYSCLKOUT GPIO26
 
     GpioCtrlRegs.GPAMUX2.bit.GPIO24 = 0;  // Configure GPIO24
     GpioCtrlRegs.GPAMUX2.bit.GPIO25 = 0;  // Configure GPIO25
     GpioCtrlRegs.GPAMUX2.bit.GPIO26 = 0;  // Configure GPIO26
+
+    GpioCtrlRegs.GPACTRL.bit.QUALPRD3 = 0x90;
 
     GpioCtrlRegs.GPADIR.bit.GPIO24 = 0;
     GpioCtrlRegs.GPADIR.bit.GPIO25 = 0;
@@ -372,7 +389,7 @@ void main(void)
     T = 0;
     F = 0.00001;
     u[0] = 0;  // vd_ref
-    u[1] = 0.2;  // vq_ref
+    u[1] = 0.1;  // vq_ref
 
     // pwm switching parameter
     f = 10;
@@ -391,11 +408,12 @@ void main(void)
     adcout_ic = 0;
 
     // time constant = 284us, R = 0.74ohm, L = 2.10*10^-4, vdc = 24 (2PI 곱해야함)
-    Kp = 0.193;    // 0.387
-    Ki = 0.0341;   // 0.0214
+    Kp = 1.158;    // 1.158, 0.387, 0.193
+    Ki = 0.2041;   // 0.2041, 0.0214, 0.0341
 
-    Kp_s = 0.00013;
-    Ki_s = 0.000003401;
+    // w_0 = 1844.43, zeta =0.3, J = 2*10^-6
+    Kp_s = 0.002;    // 0.01
+    Ki_s = 0.0005;  // 0.0005
 
     input_d = u[0];
     input_q = u[1];
@@ -413,12 +431,21 @@ void main(void)
     theta_cnt=0;
     speed_hall=0.0;
     u_q = 0.0;
-    offset_speed = 0.75;
+    offset_speed = 0.1;
     max_rad =55;
     rad_flag = 1;
     speed_cnt = 0;
+    Kv_i = 0.067;
+
+    med_speed = 0;
+    out_speed = 0;
+    pre_speed = 0;
+    Wsq = 100;
+    UUmin = 0.2;
+
     for(;;)
     {
+
     }
 
 }
@@ -426,56 +453,6 @@ __interrupt void
 adc1_isr(void)
 {
     // Kp, Ki는 time constant = L/R로 구해서 대입
-    Hallstate = GpioDataRegs.GPADAT.bit.GPIO24+2*GpioDataRegs.GPADAT.bit.GPIO25+4*GpioDataRegs.GPADAT.bit.GPIO26;
-    if(init_hallflag == 0)
-    {
-        init_hall_cnt++;
-    }
-    if((init_hall_cnt > 60000) && (Hallstate == 6))
-    {
-        init_hallflag = 1;
-        init_hall_cnt = 0;
-        Hall_flag = 1;
-        Hallstatecnt++;
-    }
-    if((Hall_flag == 1) && (Hallstate != 6))
-    {
-        if(Hallstate == 2)
-        {
-            delay_flag = 1;
-        }
-    }
-    else if((Hall_flag == 1) && (Hallstate == 6))
-    {
-
-        if(delay_flag == 1)
-        {
-            speed_hall = 20000/Hallcnt*0.0625;
-            Hallcnt = 0;
-            delay_flag = 0;
-        }
-    }
-
-    if((Hall_flag2 == 1) && (Hallstate != 4))
-    {
-        if(Hallstate == 2)
-        {
-            delay_flag2 = 1;
-        }
-    }
-    else if((Hall_flag2 == 1) && (Hallstate == 4))
-    {
-
-        if(delay_flag2 == 1)
-        {
-            speed_hall2 = 20000/Hallcnt2*0.0625+0.5;
-            Hallcnt2 = 0;
-            delay_flag2 = 0;
-        }
-    }
-
-    Hallcnt++;
-    Hallcnt2++;
 
     AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
@@ -485,64 +462,133 @@ adc1_isr(void)
 __interrupt void
 epwm4_isr(void)
 {
+    Hallstate = 4*GpioDataRegs.GPADAT.bit.GPIO24+2*GpioDataRegs.GPADAT.bit.GPIO25+GpioDataRegs.GPADAT.bit.GPIO26;
+    if(init_hallflag == 0)
+    {
+        init_hall_cnt++;
+    }
+    if((init_hall_cnt > 60000) && (Hallstate == 1))
+    {
+        init_hallflag = 1;
+        init_hall_cnt = 0;
+        Hall_flag = 1;
+        theta = 0;
+    }
+
+    if((Hall_flag == 1) && (Hallstate != 6))
+    {
+        if(Hallstate == 2)
+        {
+            delay_flag = 1;
+        }
+        else if(Hallstate == 1)
+        {
+            if(Hallstatecnt > 1)
+            {
+                Hallstatecnt = 0;
+                theta = 0;
+            }
+        }
+
+    }
+    else if((Hall_flag == 1) && (Hallstate == 6))
+    {
+
+        if(delay_flag == 1)
+        {
+            speed_hall = 20000/Hallcnt*0.0625;
+            Hallcnt = 0;
+            delay_flag = 0;
+            Hallstatecnt++;
+        }
+
+    }
+
+    if((Hall_flag == 1) && (Hallstate != 4))
+    {
+        if(Hallstate == 6)
+        {
+            delay_flag2 = 1;
+        }
+    }
+    else if((Hall_flag == 1) && (Hallstate == 4))
+    {
+        if(delay_flag2 == 1)
+        {
+            speed_hall2 = 20000/Hallcnt2*0.0625;
+            Hallcnt2 = 0;
+            delay_flag2 = 0;
+        }
+    }
+
+    if((Hall_flag == 1) && (Hallstate != 5))
+    {
+        if(Hallstate == 4)
+        {
+            delay_flag3 = 1;
+        }
+    }
+    else if((Hall_flag == 1) && (Hallstate == 5))
+    {
+        if(delay_flag3 == 1)
+        {
+            speed_hall3 = 20000/Hallcnt3*0.0625;
+            Hallcnt3 = 0;
+            delay_flag3 = 0;
+        }
+    }
+
+    med_speed = (speed_hall+speed_hall2+speed_hall3)*0.333333;
+
+    //out_speed = alpha_gain1*med_speed+alpha_gain1*pre_speed+alpha_gain2*out_speed;
+    //pre_speed = med_speed;
+
     rad = 2*PI*4*4*rad_f;      // 2*Pi*f(freq)
-    theta_in = rad*rad_t;  // 적분 된 theta 값
+    // 적분 된 theta 값
+
+    i_a = (2020.0-(float32_t)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA
+    i_b = (2020.0-(float32_t)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB
+    i_c = (2020.0-(float32_t)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC
+    clarke_park(i_a, i_b, i_c);
 
     input_d = u[0];
 
     if(Hall_flag == 0)
     {
-        error_q = input_q - out_q; // (desired)iq - (measure) iq
+        theta += rad*rad_t;
+        angle = theta*180/PI;
+        if(angle > 360) theta = 0;
+        else if(angle < -360) theta = 0;
+        error_q = u[1] - out_q; // (desired)iq - (measure) iq
         ipark_svgen(input_d,u[1]);
     }
+
     else if(Hall_flag == 1)
     {
-        if(speed_control_cnt > 200)
+        theta += rad*rad_t;
+        angle = theta*180/PI;
+        if(angle > 360) theta = 0;
+        else if(angle < -360) theta = 0;
+        if(speed_control_cnt > 2000)
         {
-            error_s = rad - (2*PI*speed_hall);
-            u_q = 0.35 - (Kp_s*error_s+Ki_s*error_s_sum*0.01);
-            if(error_s_sum > 3000)
-            {
-                error_s_sum = 3000;
-            }
-            else if(error_s_sum < -3000)
-            {
-                error_s_sum = -3000;
-            }
-            if(u_q > Umax)
-            {
-                u_q = Umax;
-            }
-            else if(u_q < 0.0002)
-            {
-                u_q = 0.0002;
-            }
-            error_s_sum += error_s;
+            if(error_s_sum > 5000) error_s_sum = 5000;
+            else if(error_s_sum < -5000) error_s_sum = -5000;
+
+            comp_speed = 2*PI*16*med_speed;
+            error_s = rad - comp_speed;
+            u_q = (Kp_s*error_s+Ki_s*error_s_sum);
+
+            //if(u_q < UUmin) u_q = UUmin;
+            error_s_sum +=error_s;
             speed_control_cnt = 0;
         }
-        if(speed_cnt > 6000)
-        {
-            if(rad_flag == 1)
-            {
-                rad_f +=1;
-                if(rad_f > max_rad)
-                {
-                    rad_flag = 0;
-                }
-            }
-            else if(rad_flag == 0)
-            {
-                rad_f -=1;
-                if(rad_f < 1)
-                {
-                    rad_flag = 1;
-                }
-            }
-            speed_cnt = 0;
-        }
-        error_d = u[0] - out_d;
-        error_q = u_q - out_q; // (desired)iq - (measure) iq
-        i_q = 0.067*(Kp*error_q+Ki*error_sum);
+
+        if(error_sum > 2000) error_sum = 2000;
+        else if(error_sum < -2000) error_sum = -2000;
+        error_q = u_q - out_q;
+        error_d = input_d - out_d;
+        i_d = Kv_i*(Kp*error_d+Ki*error_sum2);
+        i_q = Kv_i*(Kp*error_q+Ki*error_sum);
 
         if(i_q > Umax)
         {
@@ -552,32 +598,21 @@ epwm4_isr(void)
         {
             i_q = Umin;
         }
-
-        ipark_svgen(input_d,i_q);
         error_sum += error_q;
+        error_sum2 += error_d;
         speed_control_cnt++;
         speed_cnt++;
+        ipark_svgen(i_d,i_q);
     }
-    i_a = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA
-    i_b = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB
-    i_c = 0.067*(2020.0-(float32_t)AdcResult.ADCRESULT3)*10.0/2048.0;    // IC
 
-    if(i_q > 0)
-    {
-        EPwm4Regs.CMPA.half.CMPA = Ta;
-        EPwm5Regs.CMPA.half.CMPA = Tb;
-        EPwm6Regs.CMPA.half.CMPA = Tc;
-        clarke_park(i_a, i_b, i_c);
-    }
-    else if(i_q < 0)
-    {
-        EPwm4Regs.CMPA.half.CMPA = Tc;
-        EPwm5Regs.CMPA.half.CMPA = Tb;
-        EPwm6Regs.CMPA.half.CMPA = Ta;
-        clarke_park(i_c, i_b, i_a);
-    }
-    EPwm7Regs.CMPA.half.CMPA = 50.0*out_q;
-    EPwm8Regs.CMPA.half.CMPA = 50.0*rad_f;
+    EPwm4Regs.CMPA.half.CMPA = Ta;
+    EPwm5Regs.CMPA.half.CMPA = Tb;
+    EPwm6Regs.CMPA.half.CMPA = Tc;
+    EPwm7Regs.CMPA.half.CMPA = angle*10;
+
+    Hallcnt++;
+    Hallcnt2++;
+    Hallcnt3++;
     EPwm4Regs.ETCLR.bit.INT = 1;
 
     //
@@ -608,13 +643,6 @@ void clarke_park(float32_t in_a, float32_t in_b, float32_t in_c)
 }
 void ipark_svgen(float32_t vd, float32_t vq)
 {
-    theta += theta_in;
-    angle = theta*180/PI;
-    if(angle > 360)
-    {
-        cnt++;
-        theta = 0;
-    }
     ipark.Ds = vd;
     ipark.Qs = vq;
     ipark.Sine = sin(theta);

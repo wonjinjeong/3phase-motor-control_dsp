@@ -407,7 +407,7 @@ void main(void)
     adcout_ib = 0;
     adcout_ic = 0;
 
-    // time constant = 284us, R = 0.74ohm, L = 2.10*10^-4, vdc = 24 (2PI °öÇØ¾ßÇÔ)
+    // time constant = 284us, R = 0.74ohm, L = 2.10*10^-4, vdc = 24 (2PI ï¿½ï¿½ï¿½Ø¾ï¿½ï¿½ï¿½)
     Kp = 1.158;    // 1.158, 0.387, 0.193
     Ki = 0.2041;   // 0.2041, 0.0214, 0.0341
 
@@ -452,7 +452,7 @@ void main(void)
 __interrupt void
 adc1_isr(void)
 {
-    // Kp, Ki´Â time constant = L/R·Î ±¸ÇØ¼­ ´ëÀÔ
+    // Kp, Kiï¿½ï¿½ time constant = L/Rï¿½ï¿½ ï¿½ï¿½ï¿½Ø¼ï¿½ ï¿½ï¿½ï¿½ï¿½
 
     AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
@@ -544,7 +544,7 @@ epwm4_isr(void)
     //pre_speed = med_speed;
 
     rad = 2*PI*4*4*rad_f;      // 2*Pi*f(freq)
-    // ÀûºÐ µÈ theta °ª
+    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ theta ï¿½ï¿½
 
     i_a = (2020.0-(float32_t)AdcResult.ADCRESULT1)*10.0/2048.0;    // IA
     i_b = (2020.0-(float32_t)AdcResult.ADCRESULT2)*10.0/2048.0;    // IB
